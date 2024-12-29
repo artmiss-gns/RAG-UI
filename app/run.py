@@ -32,7 +32,7 @@ st.sidebar.title("Configuration")
 # PDF file upload
 uploaded_file = st.sidebar.file_uploader(
     "Upload PDF file",
-    type="pdf",
+    type=["pdf", "docx", 'doc', 'txt'],
     accept_multiple_files=False,
     help="Upload a PDF file to extract text and build the knowledge base.",
     key="pdf_uploader",
