@@ -34,9 +34,12 @@ uploaded_file = st.sidebar.file_uploader(
     "Upload PDF file",
     type=["pdf", "docx", 'doc', 'txt'],
     accept_multiple_files=False,
-    help="Upload a PDF file to extract text and build the knowledge base.",
+    help="Upload a file to extract text and build the knowledge base.",
     key="pdf_uploader",
 )
+if uploaded_file:
+    # getting the file type
+    doc_type = uploaded_file.name.rsplit('.', 1)[1]
 
 # Choosing K : (Relevant Documents)
 # FIXME: 
@@ -62,11 +65,11 @@ if prompt := st.chat_input("What is your question?"):
     with st.chat_message("user"):
         st.markdown(prompt)
     
-    # Check if a PDF file has been uploaded
+    # Check if a file has been uploaded
     if uploaded_file is not None:
         print(uploaded_file)
         # Create a temporary file to store the PDF
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=f".{doc_type}") as tmp_file:
             tmp_file.write(uploaded_file.getvalue())
             tmp_file_path = tmp_file.name
         
@@ -83,5 +86,5 @@ if prompt := st.chat_input("What is your question?"):
         st.session_state.messages.append({"role": "assistant", "content": response})
     else:
         with st.chat_message("assistant"):
-            st.markdown("Please upload a PDF file before asking questions.")
-        st.session_state.messages.append({"role": "assistant", "content": "Please upload a PDF file before asking questions."})
+            st.markdown("Please upload a file before asking questions.")
+        st.session_state.messages.append({"role": "assistant", "content": "Please upload a file before asking questions."})
