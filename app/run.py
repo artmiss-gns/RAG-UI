@@ -2,23 +2,11 @@ import streamlit as st
 from streamlit_chat import message
 import os
 import tempfile
-import requests
-import json
+from dotenv import load_dotenv
+from api_call import query_api
 
-def query_api(context_file_path, query):
-    url = "https://growing-bessy-hossein-golmohammadi-03788de4.koyeb.app"
-    
-    with open(context_file_path, 'rb') as file:
-        files = {'context': file}
-        data = {'query': query}
-    
-        with st.spinner():
-            response = requests.post(url, files=files, data=data)
-    
-    if response.status_code == 200:
-        return json.loads(response.text)["answer"]
-    else:
-        return f"Error: API request failed with status code {response.status_code}"
+load_dotenv()
+
 
 st.set_page_config(
     page_title="RAG UI",
@@ -38,20 +26,36 @@ uploaded_file = st.sidebar.file_uploader(
     key="pdf_uploader",
 )
 if uploaded_file:
-    # getting the file type
     doc_type = uploaded_file.name.rsplit('.', 1)[1]
-
-# Choosing K : (Relevant Documents)
-# FIXME: 
-# ! Add `k` here too as a parameter, currently, only the default value of k=5 is passed
-K = st.sidebar.slider("Number of retrieved relevant documents", min_value=1, max_value=10, value=5)
-
-# Main content area
-st.title("RAG System")
 
 # Initialize chat history
 if "messages" not in st.session_state:
     st.session_state.messages = []
+
+# Main content area
+st.title("RAG System")
+
+
+col1, col2 = st.sidebar.columns(2)
+
+save_index = col1.checkbox("Save index", value=False)
+load_index = col2.checkbox("Load index", value=False)
+if save_index and load_index:
+    st.sidebar.error("Cannot save and load index at the same time")
+elif save_index:
+    index_name = st.sidebar.text_input("Enter a name for the index", value="")
+elif load_index:
+    if uploaded_file:
+        # file should be removed if load_index is chosen
+        st.sidebar.error("Please remove the file before loading an index")
+    else:
+        index_name = st.sidebar.text_input("Enter a name for the index", value="")
+else:
+    index_name = None
+
+# Choosing K : (Relevant Documents)
+# FIXME: K is not implemented in the API yet
+K = st.sidebar.slider("Number of retrieved relevant documents", min_value=1, max_value=10, value=5)
 
 # Display chat messages from history on app rerun
 for message in st.session_state.messages:
@@ -66,25 +70,34 @@ if prompt := st.chat_input("What is your question?"):
         st.markdown(prompt)
     
     # Check if a file has been uploaded
-    if uploaded_file is not None:
-        print(uploaded_file)
-        # Create a temporary file to store the PDF
-        with tempfile.NamedTemporaryFile(delete=False, suffix=f".{doc_type}") as tmp_file:
-            tmp_file.write(uploaded_file.getvalue())
-            tmp_file_path = tmp_file.name
-        
+    try:
+        if uploaded_file is not None:
+            print(uploaded_file)
+            # Create a temporary file to store the PDF
+            with tempfile.NamedTemporaryFile(delete=False, suffix=f".{doc_type}") as tmp_file:
+                tmp_file.write(uploaded_file.getvalue())
+                context_file_path = tmp_file.name
+        else:
+            context_file_path = None
+            
         # Generate assistant response
-        response = query_api(tmp_file_path, prompt)
-        
-        # Remove the temporary file
-        os.unlink(tmp_file_path)
-        
+        with st.spinner("Generating response..."):
+            response = query_api(
+                query=prompt,
+                context_file_path=context_file_path,
+                save_index=save_index,
+                load_index=load_index,
+                index_name=index_name,
+                k=K
+            )
+            
         # Display assistant response in chat message container
         with st.chat_message("assistant"):
             st.markdown(response)
         # Add assistant response to chat history
         st.session_state.messages.append({"role": "assistant", "content": response})
-    else:
-        with st.chat_message("assistant"):
-            st.markdown("Please upload a file before asking questions.")
-        st.session_state.messages.append({"role": "assistant", "content": "Please upload a file before asking questions."})
+            
+    finally:
+        if uploaded_file:
+            # Remove the temporary file
+            os.unlink(context_file_path)
